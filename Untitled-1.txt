@@ -1,0 +1,84 @@
+import sys
+import os
+from tensorflow.python.keras.preprocessing.image import ImageDataGenerator## Prepocesar las imagenes para entrenar algoritmo
+from tensorflow.python.keras import optimizers## optimizadores para entrenar nuestro algoritmo
+from tensorflow.python.keras.models import Sequential## para hacer redes neuronales secuenciales
+from tensorflow.python.keras.layers import Dropout, Flatten, Dense, Activation
+from tensorflow.python.keras.layers import  Convolution2D, MaxPooling2D## Son nuestras capas para convoluciones 
+from tensorflow.python.keras import backend as K # si hay una sesion de keras la cierra
+
+K.clear_session()
+
+data_entrenamiento='./data/entrenamiento'
+data_validacion='./data/validacion'
+##Parametros
+epocas = 20 
+altura, longitud = 100 , 100 #dimension de la imagen  a la cual la preprocesaremos 
+batch_size = 32  ## numero de imagenes que mandaremos a preprocesar en cada uno de los pasos 
+pasos = 1000  #numero de veces que se preprocesara la informacion
+pasos_validacion = 200 
+filtrosConv1= 32
+filtrosConv2= 64
+tamano_filtro1=(3,3)
+tamano_filtro2=(2,2)
+tamano_pool=(2,2)
+numero_clases=3 ## numero de clases por ejemplo golf , tennis 
+lr= 0.0005 # learning rate 
+
+
+#pre procesamiento de las imagenes 
+
+#generador para preprocesar
+entrenamiento_datagen= ImageDataGenerator(
+    rescale=1./255,
+    shear_range=0.3,## inclina las imagenes 
+    zoom_range=0.3,## les va a hacer zoom a algunas imagenes 
+    horizontal_flip=True## la va invertir 
+)
+validacion_datagen=ImageDataGenerator(
+    rescale=1./255
+)
+
+imagen_entrenamiento = entrenamiento_datagen.flow_from_directory(
+    data_entrenamiento,
+    target_size= (altura, longitud),
+    batch_size= batch_size,
+    class_mode='categorical'
+)
+
+imagen_validacion = validacion_datagen.flow_from_directory(
+    data_validacion,
+    target_size= (altura, longitud),
+    batch_size= batch_size,
+    class_mode='categorical'
+)
+
+## crear red convulocional 
+
+cnn = Sequential()
+cnn.add(Convolution2D(filtrosConv1, tamano_filtro1, padding ="same", input_shape=(longitud, altura,3), activation='relu'))
+cnn.add(MaxPooling2D(pool_size=tamano_pool))
+
+cnn.add(Convolution2D(filtrosConv2, tamano_filtro2, padding ="same"))
+cnn.add(MaxPooling2D(pool_size=tamano_pool))
+
+cnn.add(Flatten())
+cnn.add(Dense(256, activation='relu'))
+cnn.add(Dropout(0.5))# enciende solo la mitad para obtener soluciones distintas
+cnn.add(Dense(numero_clases, activation='softmax'))
+
+cnn.compile(loss='categorical_crossentropy' , optimizer=optimizers.Adam(lr=lr), metrics=['accuracy'])#el algoritmo vea que tan mal va y el optimizador va a ser Adam
+
+cnn.fit_generator(
+        imagen_entrenamiento,
+        steps_per_epoch=pasos,
+        epochs=epocas,
+        validation_data=imagen_validacion,
+        validation_steps=pasos_validacion)
+
+
+target_dir = './modelo/'
+if not os.path.exists(target_dir):
+  os.mkdir(target_dir)
+cnn.save('./modelo/modelo.h5')
+cnn.save_weights('./modelo/pesos.h5')
